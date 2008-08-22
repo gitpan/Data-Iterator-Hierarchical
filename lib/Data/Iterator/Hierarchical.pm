@@ -9,11 +9,11 @@ Data::Iterator::Hierarchical - Iterate hierarchically over data
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 
 =head1 SYNOPSIS
@@ -40,9 +40,9 @@ our $VERSION = '0.01';
 
 =head1 DESCRIPTION
 
-This module allows nested loops to iterate in the natural way
-over a sorted rowset as would typically be returned from an SQL
-database query.
+This module allows nested loops to iterate in the natural way over a
+sorted rowset as would typically be returned from an SQL database
+query that is the result of naturally left joining several tables.
 
 In the example from the synopsis we want an interator that loops over
 agent. Within that we want another interator to loop over country
@@ -126,7 +126,8 @@ sub hierarchical_iterator {
     my ($row,$unchanged,$returned,$undef_after);
 
     my $make_iterator = sub {
-	my ($mk_another,$fixed) = @_;
+	my $fixed = shift;
+	my $mk_another = shift;
 	sub {
 	    unless ( wantarray ) {
 		require Carp;
@@ -149,10 +150,10 @@ sub hierarchical_iterator {
 		    }
 		}
 	    }
-	    
+
 	    my $last_col;
 	    $last_col = $fixed + $cols - 1 if $cols;
-	    
+
 	  GET:
 	    while(1) {
 		if ( $row ) {
@@ -165,24 +166,31 @@ sub hierarchical_iterator {
 		    # Unspecifed cols => all
 		    $last_col = $#$row unless $cols;
 
-		    # Skip duplicate data when we're not at the innermost
+		    # Skip duplicate data when we are not at the innermost
 		    next if defined $unchanged &&
 			$inner &&
 			$unchanged > $last_col; 
-		    
+
 		    # Skip if everything to the right is undef
 		    next if $undef_after <= $fixed;
 
-		    # There's more to come from the current row
+		    # There is more to come from the current row
 		    last if $returned < $fixed;
 		}
 	    } continue {
 		my $prev_row = $row;
 		$row = [ $get->() ];
-	      
+		
+		# Release input when we have consumed it all 
+		# as a work-round for pre 5.10 where we leak.
+		unless ( @$row ) {
+		    undef $get;
+		    undef $input;
+		}
+
 		# Nothing of this data has been returned yet
 		$returned = -1;
-		
+
 		# Count unchanged columns at left
 		$unchanged=0;
 		if ( $prev_row ) {
@@ -202,22 +210,23 @@ sub hierarchical_iterator {
 		    last if defined;
 		    $undef_after--;
 		}
-		
+
 	    }
 	    undef $unchanged;
 
 	    if ($inner) {
-		# Must pass $mk_another in each time as if we were to
-		# use $make_iterator directly we'd create a circular
-		# reference and break garbage collection.
-		$$inner = $mk_another->($mk_another, $last_col + 1);
+		# Must pass $mk_another in each time as if we were
+		# to use $make_iterator directly we wouldd create
+		# a circular reference and break garbage
+		# collection.
+		$$inner = $mk_another->($last_col + 1,$mk_another);
 	    }	    
-	    
+
 	    $returned = $fixed;
 	    return @$row[$fixed .. $last_col];
 	};
     };
-    $make_iterator->($make_iterator,0);
+    $make_iterator->(0,$make_iterator);
 }
 
 =head2 $iterator->($inner_iterator,$want)
@@ -226,13 +235,14 @@ The ineresting function from this module is, of course, the iterator
 function returned by the iterator factory.  This iterator when called
 in a list context without arguments simply returns the next a row of
 data, or an empty list to denote exhaustion. It is an error to call
-the iterator in a non-LIST context.  As an artifact, rows that consist
-entirely of undef()s are skipped.
+the iterator in a non-LIST context.  Input rows that consist entirely
+of undef()s are skipped.
 
-So, when called without arguments, the iterator returned by
-C<hierarchical_iterator()> is pretty much the same as the iterator
-that was supplied as the input!  The interesting stuff starts
-happening when you pass arguments to the iterator function.
+So if the iterator returned by the C<hierarchical_iterator()> factory
+is called without arguments it behaves pretty much the same as the
+iterator that was supplied as the input except for the skipping of
+null rows.  The interesting stuff starts happening when you pass
+arguments to the iterator function.
 
 The I<second> argument instructs the interator to return only a
 limited number of leading columns to from each row. The I<first>
@@ -242,19 +252,23 @@ leading colums change and return only the I<remaining> columns.
 
     my ($col1,$col2) = $iterator->(my $inner_iterator,2);
 
-The two arguments are specified this seemingly illogical order because
+The two arguments are specified in a seemingly illogical order because
 the second argument becomes optional if the L<Want> module is
 installed and the iterator is used in a simple list assignment (as
 above). In this case the number of columns can be inferred from the
 left hand side of the assignment.
 
-In the above example, if $inner_iterator is not used to exhastion,
-then the next invocation of $iterator will discard all input rows
-until there is a different pair of values in the first two columns.
+If the interator returned in C<$inner_iterator> is not used (or even
+not used to exhastion) then the next invocation of $iterator will
+discard all input rows until there is a different pair of values in
+the first two columns.
 
 =head1 BUGS AND CAVEATS
 
-Note that 
+In versions of Perl before 5.10 this module leaks closures as a
+consequnce of a bug in Perl's handling of reference counts.
+Consequnently the input iterator will not get released on these
+versions of Perl unless it is read to exhastion.
 
 To do: (need stuff in here about nulls, non-rectangular input,
 repeated rows, changing the number of columns half way etc.)

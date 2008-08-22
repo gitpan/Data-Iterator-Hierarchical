@@ -1,5 +1,14 @@
-Revision history for Data-RecursiveIterator
+Revision history for Data-Iterator-Hierarchical
 
-0.01    Date/time
+0.01    Wed Aug 19 14:04 2008
         First version, released on an unsuspecting world.
 
+0.02    Sat Aug 23 00:18 2008
+        Corrected initial release date and dist name in ChangeLog.
+	Fix some really stupid bugs in want.t
+	Made example.t more verbose to figure out where it is failing.
+	Use %INC in example.t to find module source.
+	Cosmetic changes to documentation.
+	Remove boilerplate.t as it is more trouble that it is worth.
+	Release input on exhaustion.
+	Skip timely destruction test in destroy.t pre-5.10.

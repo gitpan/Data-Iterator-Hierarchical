@@ -10,13 +10,6 @@ use warnings;
 
 use Data::Iterator::Hierarchical;
 
-# To test the 'not installed' error we need to fake Want not being installed
-# Hmmm... is there not a Test:: for this?
-unshift @INC, sub { 
-    require Data::Iterator::Hierarchical::fakeWant::WillFail
-	if $_[1] eq 'Want.pm';
-};
-
 my @test_data= map { [ "A$_","B$_","C$_" ] } 1 .. 100;
 my $it = hierarchical_iterator(\@test_data);
 
@@ -37,10 +30,11 @@ sub fake_Want_not_installed {
 	if $_[1] eq 'Want.pm';
 }
 
-{
-    local @INC = ( \&fake_Want_not_installed, @INC);
-    test_Want_not_installed 'fake Want';
-}
+# To test the 'not installed' error we need to fake Want not being installed
+# Hmmm... is there not a Test:: for this?
+unshift @INC, \&fake_Want_not_installed;
+test_Want_not_installed 'fake Want';
+shift @INC;
 
 SKIP: {
     skip 'Want is installed', 2 if eval { require Want; 1 };
@@ -69,7 +63,7 @@ sub do_tests {
     {
 	local $howmany;
 	local $@;
-	ok( !eval { () = $it->(my $inner); 1}, "$want undef fails");
+	ok( !eval { my @stuff = $it->(my $inner); 1}, "$want undef fails");
 	like($@,qr/not implicit/,"$want undef error");
     }
 }
@@ -82,7 +76,7 @@ SKIP: {
 # Run the fake tests even when Want *is* installed to test the tests
 
 no warnings 'redefine';
-*Want::howmany = sub{ $howmany };
+*Want::howmany = sub () { $howmany };
 $want = "fake $want";
 $INC{'Want.pm'} ||= '';
 do_tests;

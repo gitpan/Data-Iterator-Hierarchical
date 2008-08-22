@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                Data-Iterator-Hierarchical
-version:             0.01
+version:             0.02
 abstract:            Iterate hierarchically over data
 license:             ~
 author:              

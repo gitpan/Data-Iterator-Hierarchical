@@ -5,7 +5,6 @@ README
 lib/Data/Iterator/Hierarchical.pm
 t/00-load.t
 t/basic.t
-t/boilerplate.t
 t/carp.t
 t/destroy.t
 t/example.t
