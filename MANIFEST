@@ -1,6 +1,7 @@
 Changes
 MANIFEST
 Makefile.PL
+META.yml
 README
 lib/Data/Iterator/Hierarchical.pm
 t/00-load.t
@@ -12,4 +13,3 @@ t/pod-coverage.t
 t/pod.t
 t/sources.t
 t/want.t
-META.yml                                 Module meta-data (added by MakeMaker)

@@ -12,3 +12,7 @@ Revision history for Data-Iterator-Hierarchical
 	Remove boilerplate.t as it is more trouble that it is worth.
 	Release input on exhaustion.
 	Skip timely destruction test in destroy.t pre-5.10.
+
+0.03	Mon Aug 25 15:30 2008
+	Change EOL to Unix.
+	Fix example.t to be more resilient to EOL.

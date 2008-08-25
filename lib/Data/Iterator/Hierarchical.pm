@@ -5,15 +5,15 @@ use strict;
 
 =head1 NAME
 
-Data::Iterator::Hierarchical - Iterate hierarchically over data
+Data::Iterator::Hierarchical - Iterate hierarchically over tabular data
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 
 =head1 SYNOPSIS

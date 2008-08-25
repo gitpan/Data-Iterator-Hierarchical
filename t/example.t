@@ -18,7 +18,7 @@ use Data::Iterator::Hierarchical;
 
     sub command {
 	my ($parser, $command, $paragraph, $line_num) = @_;
-	my ($arg) = $paragraph =~ /(.*)/;
+	my ($arg) = $paragraph =~ /(.*?)\s*$/m;
 	$save_bit = "$command $arg";
     }
 
@@ -34,9 +34,11 @@ use Data::Iterator::Hierarchical;
 
 my $module = $INC{'Data/Iterator/Hierarchical.pm'};
 
-die unless -r $module;
+my $can_read = -r $module;
 
-pass('Can read module');
+ok($can_read,'Can read module');
+
+die unless $can_read;
 
 {
     my $parser = Data::Iterator::Hierarchical::Test::Pod::Parser->new;
@@ -74,6 +76,7 @@ shift @$sth; # Remove header row
 
 for ( $expected ) {
     ok(my ($indent) = /(\s+)/,'Got an indent on first line of expected output');
+    tr/\r//d; # Ugly DOS encoded file on Unix?
     s/\n+\Z/\n/;
     ok(s/^//mg == s/^$indent//mg,'Removed indent from from expected output');
 }
