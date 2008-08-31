@@ -16,3 +16,6 @@ Revision history for Data-Iterator-Hierarchical
 0.03	Mon Aug 25 15:30 2008
 	Change EOL to Unix.
 	Fix example.t to be more resilient to EOL.
+
+0.04	Sun Aug 31 15:00 2008
+	Skip test example.t pre Perl 5.8

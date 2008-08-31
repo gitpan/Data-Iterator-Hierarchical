@@ -2,9 +2,16 @@
 
 # Test that the example in the POD is actually correct
 
-use Test::More tests => 10;
+use Test::More;
 use strict;
 use warnings;
+
+if ( $] < 5.008 ) {
+    plan skip_all => 'test requires Perl 5.8';
+    exit;
+}
+
+plan tests => 10;
 
 my %saved_bits;
 
