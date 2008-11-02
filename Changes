@@ -20,7 +20,10 @@ Revision history for Data-Iterator-Hierarchical
 0.04	Sun Aug 31 15:00 2008
 	Skip test example.t pre Perl 5.8
 
-0.05	Sun Nov 1 13:00 2008
+0.05	Sun Nov 2 12:50 2008
 	Clean up spelling and grammar in POD.
 	Added constuctor new().
 	Added slurp() method.
+
+0.06	Sun Nov 2 13:00 2008
+	Same as 0.05 - problem with building the dist
