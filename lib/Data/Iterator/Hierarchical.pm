@@ -9,11 +9,11 @@ Data::Iterator::Hierarchical - Iterate hierarchically over tabular data
 
 =head1 VERSION
 
-Version 0.04
+Version 0.05
 
 =cut
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 
 =head1 SYNOPSIS
@@ -44,23 +44,24 @@ This module allows nested loops to iterate in the natural way over a
 sorted rowset as would typically be returned from an SQL database
 query that is the result of naturally left joining several tables.
 
-In the example from the synopsis we want an interator that loops over
-agent. Within that we want another interator to loop over country
-(code and name).  Finally within that we want to loop over sound.
+In the example from the synopsis we want an interator that iterates
+over each distict agent. Within that we want another interator to
+iterate over each distict country (code and name).  Finally within
+that we want to iterate over sound.
 
-And mostly that's all there is to say the iterator should just "Do
+And mostly that's all there is to say.  The iterator should just "Do
 What I Mean" (DWIM).
 
 =head2 input
 
      agent   |  co     | co_name  | sound
     =========|=========|==========|========
-      X      |  B      | Belgum   | fizz
+      X      |  B      | Belgium  | fizz
       X      |  D      | Germany  | bang
       X      |  D      | Germany  | pow
       X      |  D      | Germany  | zap
       Y      |  NULL   | NULL     | NULL
-      Z      |  B      | Belgum   | NULL
+      Z      |  B      | Belgium  | NULL
       Z      |  E      | Spain    | bar 
       Z      |  E      | Spain    | bar 
       Z      |  I      | Italy    | foo
@@ -68,7 +69,7 @@ What I Mean" (DWIM).
 =head2 output
 
     agent=X
-      co=B, co_name=Belgum
+      co=B, co_name=Belgium
         sound=fizz
       co=D, co_name=Germany
         sound=bang
@@ -76,7 +77,7 @@ What I Mean" (DWIM).
         sound=zap
     agent=Y
     agent=Z
-      co=B, co_name=Belgum
+      co=B, co_name=Belgium
       co=E, co_name=Spain
         sound=bar
         sound=bar
@@ -97,18 +98,21 @@ our @EXPORT = qw(hierarchical_iterator);
 =head2 hierarchical_iterator($rowset_source)
 
 A factory for iterator functions. Takes a rowset source as an argument
-and returns an interator function.
+and returns an iterator as CODE reference (blessed to the
+Data::Iterator::Hierarchical class).
 
-The input rowset is cannonically presented as iterator function that
-is to be called with no arguments in a list context and is expected to
-return the next row from the set as a list.  When the input is
-exhasted the iterator is expected to return an empty list.
+The input (or rowset source) is canonically presented as an iterator
+function. For each row the iterator function is called in a list
+context with an empty argument list. It must return the next row from
+the set as a list.  When the source is exhausted the iterator function
+must return an empty list.
 
-For convienience the data source can also be specified simply as
-C<\@array> in which case the interator C<sub { shift @array }> is
+For convenience the source can also be specified simply as C<\@array>
+in which case the iterator C<sub { @{ shift @array } }> is
 assumed. Finally, if the data source is specified as anything other
-than an ARRAY or CODE reference then it is assumed to be an object
-that provides a C<fetchrow_array()> method (such as a L<DBI> handle).
+than an unblessed ARRAY or CODE reference then it is assumed to be an
+object that provides a C<fetchrow_array()> method (such as a L<DBI>
+handle).
 
 =cut
 
@@ -128,7 +132,7 @@ sub hierarchical_iterator {
     my $make_iterator = sub {
 	my $fixed = shift;
 	my $mk_another = shift;
-	sub {
+	bless sub {
 	    unless ( wantarray ) {
 		require Carp;
 		Carp::croak('Data::Iterator::Hierarchical iterator called in non-LIST context');
@@ -216,7 +220,7 @@ sub hierarchical_iterator {
 
 	    if ($inner) {
 		# Must pass $mk_another in each time as if we were
-		# to use $make_iterator directly we wouldd create
+		# to use $make_iterator directly we would create
 		# a circular reference and break garbage
 		# collection.
 		$$inner = $mk_another->($last_col + 1,$mk_another);
@@ -231,47 +235,195 @@ sub hierarchical_iterator {
 
 =head2 $iterator->($inner_iterator,$want)
 
-The ineresting function from this module is, of course, the iterator
-function returned by the iterator factory.  This iterator when called
-in a list context without arguments simply returns the next a row of
-data, or an empty list to denote exhaustion. It is an error to call
-the iterator in a non-LIST context.  Input rows that consist entirely
-of undef()s are skipped.
+The interesting function from this module is, of course, the iterator
+function returned from the iterator factory.  This iterator, like the
+source iterator, should be called in a list context to return a row of
+data or or an empty list to denote exhaustion. It is an error to call
+the iterator in a non-LIST context.
 
-So if the iterator returned by the C<hierarchical_iterator()> factory
-is called without arguments it behaves pretty much the same as the
-iterator that was supplied as the input except for the skipping of
-null rows.  The interesting stuff starts happening when you pass
-arguments to the iterator function.
+If the iterator returned by the C<hierarchical_iterator()> factory is
+called I<without arguments> it behaves pretty much the same as the
+iterator that was supplied as the input except that rows that consist
+entirely of undef()s are skipped.
 
-The I<second> argument instructs the interator to return only a
-limited number of leading columns to from each row. The I<first>
-argument is used to return an inner Data::Iterator::Hierarchical iterator
-that will iterate over only the successive rows of the input until the
-leading colums change and return only the I<remaining> columns.
+The interesting stuff starts happening when you pass arguments to the
+iterator function.
+
+The I<second> argument instructs the iterator to return only a limited
+number of leading columns from the next row. The I<first> argument is
+used to return another Data::Iterator::Hierarchical iterator that
+iterates over successive rows of the input only I<until the leading
+columns> change and return only the I<remaining> columns.
 
     my ($col1,$col2) = $iterator->(my $inner_iterator,2);
 
 The two arguments are specified in a seemingly illogical order because
 the second argument becomes optional if the L<Want> module is
-installed and the iterator is used in a simple list assignment (as
-above). In this case the number of columns can be inferred from the
-left hand side of the assignment.
+installed. When the iterator is called in a simple list assignment (as
+above) it can infer the number of columns to returned from the number
+of variables on the left hand side of the assignment.
 
-If the interator returned in C<$inner_iterator> is not used (or even
-not used to exhastion) then the next invocation of $iterator will
-discard all input rows until there is a different pair of values in
-the first two columns.
+If the iterator C<$inner_iterator> is not read to exhaustion then the
+next invocation of C<$iterator> will discard all rows from the source
+rowset until there is a different pair of values in the first two
+columns. Note that just as C<$iterator> skips rows that consit
+entirely of undef()s, C<$inner_iterator> will skip rows from the
+rowset where the third column onwards are all undef().
+
+=head1 METHODS
+
+=head2 new($rowset_source)
+
+An alternative to C<hierarchical_iterator>. If you use this
+constructor you can suppress the export of the factory function and
+just treat this module as providing an object API.
+
+=cut
+
+sub new {
+    shift;
+    goto &hierarchical_iterator;
+}
+
+=head2 slurp(%args)
+
+Hierarchical iterators are useful for processing a large rowsets
+without slurping the whole lot into memory. But oftentimes, in the
+innermost levels of looping you really do just want to populate a hash
+or an array.
+
+The C<slurp> method reads all the remaining input from a iterator and
+returns a reference to an simple structure of hashes and
+arrays. Without any arguments C<slurp()> returns the rowset as an
+array of arrays. The following arguments can be passed as hash
+reference or as an key-value list and modify the behaviour of C<slurp>.
+
+=over
+
+=item hash_depth 
+
+A number of leading columns to be used as keys of a multi level-hash. A
+C<hash_depth> greater than the number of columns results in a hash
+with a depth one more than the number of columns but with the
+innermost hashes all being empty.
+
+=item one_column
+
+A flag indicating that for (the remainder of) each row return just the
+first column rather than a reference to an array.
+
+=item one_row
+
+A flag indicating that just the first row should be returned not an
+array containing all rows. This is only useful when C<hash_depth> is
+non-zero as otherwise you may just as well simply call the iteratator
+directly a single time. This option is mostly useful to get rid of a
+reduntant level of indirection when the source rowset is known to be
+such that there will only be a single row for each hash element.
+
+The one_row flag used in conjunction with a C<hash_depth> equal to the
+number of columns results in a nested hash of the desired depth with
+all the leaf values being undef.
+
+=back
+
+Used together the combination C<slurp( hash_depth=>1, one_row=>1,
+one_column=>1 )> is most likely to be useful as tranforms an interator
+that would provide successive key-value pairs in a simple hash.
+
+Consider, for example, an iterator for which a simple C<slurp> would
+yeild the following (where C<U> is short for C<undef>):
+
+    [ [ 1, 1, 1 ],
+      [ 2, 2, 2 ],
+      [ 2, 2, 3 ],
+      [ 2, 3, 2 ],
+      [ 3, 1, 2 ],
+      [ 3, 2, U ],
+      [ 4, U, U ]];
+
+For the same rowset C<slurp( hash_depth => 1 )> would yeild:
+
+    { 1 => [[ 1, 1 ]],
+      2 => [[ 2, 2 ],
+	    [ 2, 3 ],
+	    [ 3, 2 ]],
+      3 => [[ 1, 2,],
+	    [ 2, U ]],
+      4 => [        ]};
+
+C<slurp( hash_depth => 2 )> would yeild:
+
+    { 1 => { 1 => [[ 1 ]] },
+      2 => { 2 => [[ 2 ],
+		   [ 3 ]],
+	     3 => [[ 2 ]] },
+      3 => { 1 => [[ 2 ]],
+	     2 => [     ] },
+      4 => {              }};
+
+C<slurp( hash_depth => 3, one_row => 1 )> would yeild:
+
+    { 1 => { 1 => { 1 => U }},
+      2 => { 2 => { 2 => U,
+		    3 => U },
+	     3 => { 2 => U }},
+      3 => { 1 => { 2 => U },
+	     2 => {        }},
+      4 => {                }};
+
+C<slurp( hash_depth => 99 )> would yeild:
+
+    { 1 => { 1 => { 1 => {} }},
+      2 => { 2 => { 2 => {},
+		    3 => {} },
+	     3 => { 2 => {} }},
+      3 => { 1 => { 2 => {} },
+	     2 => {         }},
+      4 => {                 }};
+
+C<slurp( hash_depth=>1, one_row=>1, one_column=>1 )> would yeild:
+
+    { 1 => 1,
+      2 => 2,
+      3 => 1,
+      4 => U };
+
+=cut
+
+ sub slurp {
+    my $self = shift;
+    my $args = @_ == 1 ? shift : { @_ };
+    if ( my $depth = $args->{hash_depth} ) {
+	my %inner_args = ( %$args, hash_depth => $depth - 1 );
+	my %hash;
+	while ( my ($key) = $self->(my $inner,1) ) {
+	    $hash{$key} = $inner->slurp( \%inner_args ); 
+	}
+	return \%hash;
+    } else {
+	my @rowset;
+	while ( my @row = $self->() ) {
+	    push @rowset => $args->{one_column} ? shift @row : \@row;
+	}
+	return $args->{one_row} ? shift @rowset : \@rowset;
+    }
+}
 
 =head1 BUGS AND CAVEATS
 
 In versions of Perl before 5.10 this module leaks closures as a
-consequnce of a bug in Perl's handling of reference counts.
-Consequnently the input iterator will not get released on these
-versions of Perl unless it is read to exhastion.
+consequence of a bug in Perl's handling of reference counts.
+Consequently the rowset source iterator will not get released on these
+versions of Perl unless it is read to exhaustion.
 
-To do: (need stuff in here about nulls, non-rectangular input,
-repeated rows, changing the number of columns half way etc.)
+In judging if the leading columns have changed the C<eq> operator
+is used so empty string and undefined values will be considered equal.
+
+If you do silly things like change the number of leading columns
+requested half way through an iterator's life or request more columns
+than are present in the source rowset then the iterator function will
+I<do the right thing>.  But don't do that!
 
 =head1 AUTHOR
 
@@ -279,16 +431,18 @@ Brian McCauley, C<< <nobull at cpan.org> >>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-data-iterator-hierarchical at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Data-Iterator::Hierarchical>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
+Please report any bugs or feature requests to
+C<bug-data-iterator-hierarchical at rt.cpan.org>, or through the web
+interface at
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Data-Iterator::Hierarchical>.
+I will be notified, and then you'll automatically be notified of
+progress on your bug as I make changes.
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
     perldoc Data::Iterator::Hierarchical
-
 
 You can also look for information at:
 
